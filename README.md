@@ -18,3 +18,8 @@ DB_PORT=3306
 DB_DATABASE=herramientas_db
 DB_USERNAME=
 DB_PASSWORD=
+
+Para la ejecución del proyecto en entornos de desarrollo se recomienda usar los siguientes comandos en terminales diferentes:
+
+- `php artisan serve`
+- `npm run dev`
