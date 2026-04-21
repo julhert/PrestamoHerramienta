@@ -18,4 +18,9 @@ class Herramienta extends Model
         'disponibilidad',
         'observaciones'
     ];
+
+    public function categoria()
+    {
+        return $this->belongsTo(Categoria::class, 'categoria_id');
+    }
 }
