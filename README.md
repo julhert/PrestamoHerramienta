@@ -1,8 +1,17 @@
+# SISTEMA DE GESTIÓN PARA PRÉSTAMO DE HERRAMIENTAS
+
+Proyecto desarrollado por:
+
+- Luis Julián Hernández Trejo
+- José Manuel Vega Torres
+
+## Pasos para crear el entorno de desarrollo
+
 1.Clonar el repositorio: git clone https://github.com/LgUebv/Proyecto-Prestamo-Herramienta
 
-2. Descargar e instalar dependencias que el proyecto necesita para funcionar: composer install
+1. Descargar e instalar dependencias que el proyecto necesita para funcionar: composer install
 
-3. Copiar y crear un nuevo .env:
+2. Copiar y crear un nuevo .env:
 
 Para Linux: cp .env.example .env
 
@@ -22,4 +31,13 @@ DB_PASSWORD=
 Para la ejecución del proyecto en entornos de desarrollo se recomienda usar los siguientes comandos en terminales diferentes:
 
 - `php artisan serve`
-- `npm run dev`
+- `npm install` y luego: `npm run dev`
+
+### DEPENDENCIAS PARA EL PROYECTO
+
+Para que el generador de códigos QR para las herramientas se necesita la herramienta **php-imagick**. Puedes instalarla
+usando el siguiente comando (Fedora):
+
+```bash
+sudo dnf install php-imagick
+```

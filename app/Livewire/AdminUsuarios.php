@@ -75,7 +75,29 @@ class AdminUsuarios extends Component
 
     public function borrar($id) 
     { 
-        Prestatario::find($id)->delete(); 
+        $this->mensajeExito = '';
+        $this->mensajeError = '';
+
+        try {
+            $usuario = \App\Models\Prestatario::findOrFail($id);
+
+            // Verificamos si el usuario tiene préstamos registrados
+            // (Asegúrate de tener la relación public function prestamos() en tu modelo Prestatario)
+            $tienePrestamos = \App\Models\Prestamo::where('prestatario_id', $id)->exists();
+
+            if ($tienePrestamos) {
+                // Si tiene historial, NO lo borramos. Solo lo desactivamos.
+                $usuario->update(['estado' => 'inactivo']);
+                $this->mensajeExito = 'El usuario tiene préstamos en su historial. Se ha marcado como INACTIVO por seguridad.';
+            } else {
+                // Si es un usuario nuevo que nunca pidió nada, sí podemos borrarlo por completo.
+                $usuario->delete();
+                $this->mensajeExito = 'Usuario eliminado de la base de datos correctamente.';
+            }
+
+        } catch (\Exception $e) {
+            $this->mensajeError = 'Error al procesar la solicitud: ' . $e->getMessage();
+        }
     }
 
     public function render()

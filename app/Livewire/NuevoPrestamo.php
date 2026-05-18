@@ -31,12 +31,24 @@ class NuevoPrestamo extends Component
     public $mensajeError = '';
     public $mensajeExito = '';
 
+    public $es_trabajador = false; 
+    public $nombre_trabajador = '';
+
+    // --- VARIABLES DEL CARRITO/PRESTAMO ---
+    public $codigoEscaneado = ''; 
+
+    public function updatedEsTrabajador()
+    {
+        $this->numeroControl = '';
+        $this->nombre_trabajador = '';
+        $this->resetValidation();
+    }
+
     public function buscarPrestatario()
     {
         $this->mensajeError = ''; $this->mensajeExito = '';
-        $this->numeroControl = trim($this->numeroControl); // Quita espacios vacíos
+        $this->numeroControl = trim($this->numeroControl); 
 
-        // Validación estricta de 9 dígitos o que empiece con T-
         if (strlen($this->numeroControl) !== 9 && !str_starts_with($this->numeroControl, 'T-')) {
             $this->mensajeError = 'El número de control debe tener exactamente 9 dígitos (o empezar con T- para trabajadores).';
             $this->esNuevoRegistro = false;
@@ -56,7 +68,6 @@ class NuevoPrestamo extends Component
             $this->nombreCompleto = $usuario->nombre_completo;
             $this->esNuevoRegistro = false;
         } else {
-            // Activa la bandera para que el HTML muestre el input del nombre
             $this->prestatario = null;
             $this->nombreCompleto = '';
             $this->esNuevoRegistro = true;
@@ -65,8 +76,7 @@ class NuevoPrestamo extends Component
 
     public function limpiarPrestatario()
     {
-        // Función dedicada para el botón "Cambiar"
-        $this->reset(['prestatario', 'numeroControl', 'nombreCompleto', 'esNuevoRegistro', 'mensajeError']);
+        $this->reset(['prestatario', 'numeroControl', 'nombreCompleto', 'esNuevoRegistro', 'mensajeError', 'es_trabajador', 'nombre_trabajador']);
     }
 
     public function agregarAlCarrito()
@@ -107,26 +117,47 @@ class NuevoPrestamo extends Component
 
     public function confirmarPrestamo()
     {
-        $this->mensajeError = ''; $this->mensajeExito = '';
+        $this->mensajeError = ''; 
+        $this->mensajeExito = '';
 
+        // 1. Validación de campos generales
         if (empty($this->carrito) || empty($this->materia) || empty($this->fechaLimite) || !$this->aceptoTerminos) {
             $this->mensajeError = 'Faltan datos: Asegúrate de llenar la materia, fecha límite, agregar herramientas y aceptar los términos.';
             return;
         }
 
-        if ($this->esNuevoRegistro && empty($this->nombreCompleto)) {
-            $this->mensajeError = 'Debes ingresar el nombre para registrar a este nuevo usuario.';
-            return;
-        }
 
-        if (!$this->esNuevoRegistro && !$this->prestatario) {
-            $this->mensajeError = 'Debes buscar un usuario válido antes de continuar.';
-            return;
+        // 2. Validación específica según el tipo de persona
+        if ($this->es_trabajador) {
+            if (empty($this->nombre_trabajador)) {
+                $this->mensajeError = 'Debes ingresar el nombre del trabajador externo.';
+                return;
+            }
+        } else {
+            if ($this->esNuevoRegistro && empty($this->nombreCompleto)) {
+                $this->mensajeError = 'Debes ingresar el nombre para registrar a este nuevo usuario.';
+                return;
+            }
+
+            if (!$this->esNuevoRegistro && !$this->prestatario) {
+                $this->mensajeError = 'Debes buscar un usuario válido antes de continuar.';
+                return;
+            }
         }
 
         try {
             DB::transaction(function () {
-                if ($this->esNuevoRegistro) {
+                // 3. Crear el Prestatario si es necesario
+                if ($this->es_trabajador) {
+                    $this->prestatario = Prestatario::firstOrCreate(
+                        ['nombre_completo' => $this->nombre_trabajador],
+                        [
+                            'numero_control' => 'EXT-' . time(), 
+                            'tipo_usuario' => 'Trabajador Externo',
+                            'estado' => 'activo' 
+                        ]
+                    );
+                } elseif ($this->esNuevoRegistro) {
                     $this->prestatario = Prestatario::create([
                         'numero_control' => $this->numeroControl,
                         'nombre_completo' => $this->nombreCompleto,
@@ -135,6 +166,7 @@ class NuevoPrestamo extends Component
                     ]);
                 }
 
+                // 4. Crear el Préstamo principal
                 $prestamo = Prestamo::create([
                     'prestatario_id' => $this->prestatario->id,
                     'user_id' => Auth::id(),
@@ -145,22 +177,29 @@ class NuevoPrestamo extends Component
                     'acepto_terminos' => $this->aceptoTerminos,
                 ]);
 
+                // 5. Registrar detalles y firmas de auditoría
                 foreach ($this->carrito as $item) {
                     PrestamoDetalles::create([
                         'prestamo_id' => $prestamo->id,
                         'herramienta_id' => $item['id'],
                         'cantidad' => 1, 
                         'condicion_entrega' => $item['estado_fisico'],
+                        
+                        // Firma de auditoría: Quién lo prestó
+                        'entregado_por_id' => Auth::id(),
                     ]);
                     Herramienta::where('id', $item['id'])->update(['disponibilidad' => 'prestada']);
                 }
             });
 
+            // 6. Limpieza final
             $this->reset([
                 'numeroControl', 'codigoBarras', 'prestatario', 'carrito', 
-                'materia', 'fechaLimite', 'aceptoTerminos', 'nombreCompleto', 'esNuevoRegistro'
+                'materia', 'fechaLimite', 'aceptoTerminos', 'nombreCompleto', 
+                'esNuevoRegistro', 'es_trabajador', 'nombre_trabajador'
             ]);
-            $this->mensajeExito = '¡Préstamo guardado correctamente!';
+            
+            $this->mensajeExito = '¡Préstamo guardado y firmado correctamente!';
 
         } catch (\Exception $e) {
             $this->mensajeError = 'Error al guardar en base de datos: ' . $e->getMessage();
